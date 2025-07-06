@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>For You</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Montserrat:wght@400;500&family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0a0a10;
+            --text-light: #eaeaea;
+            --cream: #FFF8DC;
+            --highlight-pink: #ffc0cb;
+            --overlay-color: rgba(10, 5, 15, 0.75);
+
+            /* Timing */
+            --initial-photo-hold-duration: 8000ms; /* 8 seconds */
+            --transition-duration: 1.5s;
+            --message-linger-duration: 5000ms; /* 5 seconds pause after message */
+            --typewriter-speed: 60ms;
+
+            /* Fonts */
+            --font-body: 'Montserrat', sans-serif;
+            --font-typewriter: 'Courier Prime', monospace;
+            --font-accent: 'Dancing Script', cursive;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            height: 100%; width: 100%;
+            overflow: hidden;
+            background-color: var(--bg-dark);
+            font-family: var(--font-body);
+            color: var(--text-light);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* --- Layers & Containers --- */
+        .layer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; pointer-events: none;
+            transition: opacity var(--transition-duration) ease-in-out;
+            display: flex; justify-content: center; align-items: center;
+            flex-direction: column;
+        }
+        .layer.active { opacity: 1; pointer-events: auto; }
+
+        #start-overlay { z-index: 100; background-color: var(--bg-dark); cursor: pointer; }
+        .background-layer { z-index: 1; }
+        .foreground-layer { z-index: 10; }
+        #final-popup-container { z-index: 50; }
+
+        /* --- Start Overlay --- */
+        #start-button {
+            font-family: var(--font-accent);
+            font-size: clamp(2rem, 8vmin, 3.5rem);
+            color: var(--highlight-pink);
+            border: 2px solid var(--highlight-pink);
+            padding: 20px 40px;
+            border-radius: 15px;
+            background: transparent;
+            text-shadow: 0 0 10px var(--highlight-pink);
+            animation: pulse-start 2.5s infinite ease-in-out;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        #start-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px var(--highlight-pink);
+        }
+        @keyframes pulse-start {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 10px rgba(255, 192, 203, 0.4); }
+            50% { transform: scale(1.03); box-shadow: 0 0 25px rgba(255, 192, 203, 0.7); }
+        }
+
+        /* --- Phase 1: First Image --- */
+        #first-image-container { background-color: var(--bg-dark); }
+        #first-photo {
+            display: block; width: 100%; height: 100%;
+            object-fit: contain;
+            opacity: 0;
+            animation: fadeInPhoto 2s 0.5s ease-in forwards;
+        }
+        @keyframes fadeInPhoto { to { opacity: 1; } }
+
+        /* --- Blurred BG for Phase 2 --- */
+        #blurred-bg-container {
+            background-size: cover; background-position: center;
+            filter: blur(8px) brightness(0.8);
+            transform: scale(1.05);
+        }
+        #blurred-bg-container::before {
+            content: ''; position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: var(--overlay-color);
+        }
+
+        /* --- Phase 2: Message Reveal --- */
+        #message-container { color: var(--cream); padding: 20px; }
+        #typewriter-text {
+            font-family: var(--font-typewriter);
+            font-size: clamp(1rem, 4.5vmin, 1.6rem);
+            line-height: 1.6; text-align: left;
+            width: 100%; max-width: 800px;
+            white-space: pre-wrap;
+            position: relative;
+        }
+        #typewriter-text.typing::after {
+            content: '█';
+            animation: blink 1s step-end infinite;
+            position: absolute;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        /* --- Phase 3: Final Image --- */
+        #final-image-container { background: var(--bg-dark); }
+        #final-photo {
+            display: block; max-width: 90%; max-height: 90%;
+            object-fit: contain; border-radius: 8px;
+            box-shadow: 0 5px 50px 15px rgba(0,0,0,0.5);
+            opacity: 0;
+            transition: opacity 1.5s ease-in;
+        }
+        #final-image-container.active #final-photo { opacity: 1; }
+
+        /* --- Final Pop-up --- */
+        #final-popup {
+            background: rgba(20, 10, 30, 0.8);
+            backdrop-filter: blur(5px);
+            padding: 25px 35px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px 0 rgba(255, 192, 203, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            text-align: center;
+            transform: scale(0.9) translateY(20px);
+            opacity: 0;
+            transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.6s ease;
+        }
+        #final-popup-container.active #final-popup {
+            transform: scale(1) translateY(0);
+            opacity: 1;
+        }
+        #final-popup-text {
+            font-family: var(--font-accent);
+            font-size: clamp(1.8rem, 6vmin, 2.8rem);
+            color: var(--cream);
+            text-shadow: 0 0 15px var(--highlight-pink);
+        }
+
+        /* Audio hidden */
+        audio { display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- Start Overlay -->
+    <div id="start-overlay" class="layer active">
+        <button id="start-button">Click to Begin</button>
+    </div>
+
+    <!-- Phase 1: First Image -->
+    <div id="first-image-container" class="layer foreground-layer">
+        <img id="first-photo" src="" alt="A special photo for you">
+    </div>
+
+    <!-- Background Layer for Phase 2 -->
+    <div id="blurred-bg-container" class="layer background-layer"></div>
+
+    <!-- Phase 2: Message Reveal -->
+    <div id="message-container" class="layer foreground-layer">
+        <div id="typewriter-text"></div>
+    </div>
+
+    <!-- Phase 3: Final Image with Voice Note -->
+    <div id="final-image-container" class="layer foreground-layer">
+        <img id="final-photo" src="" alt="Another special photo">
+    </div>
+
+    <!-- Final Pop-up -->
+    <div id="final-popup-container" class="layer">
+        <div id="final-popup">
+            <p id="final-popup-text">Forever together stronger 🥹💗🧿</p>
+        </div>
+    </div>
+
+    <!-- Audio -->
+    <audio id="main-music" src="" preload="auto" loop></audio>
+    <audio id="voice-note-audio" src="" preload="auto"></audio>
+
+    <script>
+        // --- Config ---
+        const FIRST_IMAGE_URL = "https://raw.githubusercontent.com/maryam-FOLDS/Kekdeee/main/00b101f1-fd6f-42be-a6b8-8d5f8935cc24.png";
+        const FINAL_IMAGE_URL = "https://raw.githubusercontent.com/maryam-FOLDS/Kekdeee/main/IMG-20250705-WA0034.jpg";
+        const MAIN_MUSIC_URL = "https://raw.githubusercontent.com/maryam-FOLDS/Kekdeee/main/Dasi%20Na%20Mere%20Bare%20(Full%20Video)%20%20Goldy%20%20Latest%20Punjabi%20Song%202016%20%20Speed%20Records.mp3";
+        // --- NEW AUDIO URL ---
+        const VOICE_NOTE_URL = "https://raw.githubusercontent.com/maryam-FOLDS/Kekdeee/main/nishi";
+
+        const MESSAGE_TEXT = `know hun tuhi bhar jayogee 😤💔
+Bhout sare tere frnds baan gee 👯‍♀️
+Naaviya chija dekhn nu milln gyiya 😍✨
+Prrr agar tu menu bhulyaa 😡😤
+Frr dekhi teriya mai latta tordddhh deniyaaa 🦵💥
+Lggi na smj kekdeeee 🦀😂
+
+Bki kiise da bday vi aa reha 🥳
+Sirf 3 month baad…
+Shyd meri bbyy da hee aa bdayyy 🎂👶
+Haa yaad ayi gee teri 🤗
+
+Pr mai taaa msg te call tee heee sara dimaag khaa jna 🤯📞
+Tera khoon pee jna 🧛‍♀️😂
+Mai tera... and anddd anddddd 🥺❤️
+Mai koi bkiya vangu koi cake jaa kuj hor ta ni kr skdi 🎂🚫
+Prrr eh ek chota ja hamper mere vloo 🎁💝
+Sambl kee rkhi 🙈
+
+Menu vi te hamper vi 😘
+I loveee uhhhh bbbbyyy ❤️🥹💘
+And have a safe journey nishii ✈️🧳💫`;
+
+        // Durations from CSS (with fallbacks)
+        const INITIAL_PHOTO_HOLD_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--initial-photo-hold-duration') || '8000ms');
+        const MESSAGE_LINGER_DURATION_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--message-linger-duration') || '5000ms');
+        const TYPEWRITER_SPEED_MS = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--typewriter-speed') || '60ms');
+
+        // --- DOM Elements ---
+        const startOverlay = document.getElementById('start-overlay');
+        const startButton = document.getElementById('start-button');
+        const firstImageContainer = document.getElementById('first-image-container');
+        const firstPhoto = document.getElementById('first-photo');
+        const blurredBgContainer = document.getElementById('blurred-bg-container');
+        const messageContainer = document.getElementById('message-container');
+        const typewriterText = document.getElementById('typewriter-text');
+        const finalImageContainer = document.getElementById('final-image-container');
+        const finalPhoto = document.getElementById('final-photo');
+        const finalPopupContainer = document.getElementById('final-popup-container');
+        const mainMusic = document.getElementById('main-music');
+        const voiceNoteAudio = document.getElementById('voice-note-audio');
+
+        // --- Functions ---
+        function setActiveForeground(layerId) {
+            document.querySelectorAll('.foreground-layer').forEach(el => el.classList.remove('active'));
+            const element = document.getElementById(layerId);
+            if (element) element.classList.add('active');
+        }
+
+        function fadeAudio(audio, toVolume, duration = 1000) {
+            const startVolume = audio.volume;
+            const volumeChange = toVolume - startVolume;
+            if (volumeChange === 0) return Promise.resolve();
+
+            return new Promise(resolve => {
+                let startTime = null;
+                function animateVolume(currentTime) {
+                    if (startTime === null) startTime = currentTime;
+                    const timeElapsed = currentTime - startTime;
+                    const progress = Math.min(timeElapsed / duration, 1);
+                    audio.volume = startVolume + (volumeChange * progress);
+                    if (progress < 1) {
+                        requestAnimationFrame(animateVolume);
+                    } else { resolve(); }
+                }
+                requestAnimationFrame(animateVolume);
+            });
+        }
+
+        function startTypewriter(element, text, onComplete) {
+            let i = 0;
+            element.innerHTML = '';
+            element.classList.add('typing');
+            function type() {
+                if (i < text.length) {
+                    element.innerHTML += text.charAt(i);
+                    i++;
+                    setTimeout(type, TYPEWRITER_SPEED_MS);
+                } else {
+                    element.classList.remove('typing');
+                    if (onComplete) onComplete();
+                }
+            }
+            type();
+        }
+
+        function startExperience() {
+            console.log("Starting experience...");
+            startOverlay.classList.remove('active');
+
+            mainMusic.currentTime = 20;
+            mainMusic.volume = 0;
+            mainMusic.play().then(() => fadeAudio(mainMusic, 0.7, 4000));
+
+            setActiveForeground('first-image-container');
+            
+            setTimeout(transitionToMessage, INITIAL_PHOTO_HOLD_MS);
+        }
+
+        function transitionToMessage() {
+            console.log("Phase 1 -> Phase 2");
+            blurredBgContainer.style.backgroundImage = `url('${FIRST_IMAGE_URL}')`;
+            blurredBgContainer.classList.add('active');
+            setActiveForeground('message-container');
+
+            setTimeout(() => {
+                startTypewriter(typewriterText, MESSAGE_TEXT, () => {
+                    console.log("Typewriter finished. Lingering...");
+                    setTimeout(showFinalInterface, MESSAGE_LINGER_DURATION_MS);
+                });
+            }, 1000);
+        }
+
+        function showFinalInterface() {
+            console.log("Phase 2 -> Phase 3");
+            messageContainer.classList.remove('active');
+            blurredBgContainer.classList.remove('active');
+            setActiveForeground('final-image-container');
+
+            // --- UPDATED LOGIC: Fade out and PAUSE main music ---
+            fadeAudio(mainMusic, 0, 1500).then(() => {
+                mainMusic.pause();
+                console.log(`Main music paused at ${mainMusic.currentTime.toFixed(2)}s`);
+                voiceNoteAudio.play().catch(e => console.warn("Voice note play failed:", e));
+            });
+        }
+
+        function onVoiceNoteEnd() {
+            console.log("Voice note finished.");
+
+            // --- UPDATED LOGIC: RESUME and fade in main music ---
+            console.log(`Resuming main music from ${mainMusic.currentTime.toFixed(2)}s`);
+            mainMusic.play().catch(e => console.warn("Main music resume failed:", e));
+            fadeAudio(mainMusic, 0.7, 2500);
+
+            setTimeout(() => {
+                finalPopupContainer.classList.add('active');
+            }, 1500);
+        }
+
+        // --- Initialization ---
+        function init() {
+            firstPhoto.src = FIRST_IMAGE_URL;
+            finalPhoto.src = FINAL_IMAGE_URL;
+            mainMusic.src = MAIN_MUSIC_URL;
+            voiceNoteAudio.src = VOICE_NOTE_URL;
+
+            startButton.addEventListener('click', startExperience, { once: true });
+            voiceNoteAudio.addEventListener('ended', onVoiceNoteEnd);
+            
+            console.log("Experience Initialized. Waiting for user to click start.");
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+
+</body>
+</html>
